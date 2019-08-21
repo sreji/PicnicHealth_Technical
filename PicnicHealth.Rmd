@@ -1,0 +1,11 @@
+---
+title: "PicnicHealth"
+author: "Shaina Reji"
+date: "8/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("/Users/sreji/Documents/PicnicHealth_Technical/setup.R")
+```
+
