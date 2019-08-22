@@ -25,3 +25,5 @@ There are also better visuals that can be created with more time. For a problem 
 R Shiny dashboard would be very helpful is showing differences (rather than just ggplot). 
 
 Overall I think what I did is just a glance into what I could have done!
+
+For view: I knit the final result to a html, which is in the repo!
