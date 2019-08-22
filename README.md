@@ -26,4 +26,4 @@ R Shiny dashboard would be very helpful is showing differences (rather than just
 
 Overall I think what I did is just a glance into what I could have done!
 
-For view: I knit the final result to a html, which is in the repo!
+For view: I attached an html to the submission link and also I knit the final result to a pdf, which is in the repo!
