@@ -1,11 +1,119 @@
 ---
 title: "PicnicHealth"
 author: "Shaina Reji"
-date: "8/19/2019"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+I wanted to first explore what happens to the number of riders if it rained at all during the day. The below code manipulates the code so we can look at plots and t tests.
+
+
+```{r, warning= FALSE, message= FALSE}
+# Calling another file to read in the data, fix date time formats and then combine the bike data
 source("/Users/sreji/Documents/PicnicHealth_Technical/setup.R")
+
+# Gets the days that it rains at all
+rain_days = weather_data %>% 
+  filter(!is.na(DAILYPrecip) & DAILYPrecip > 0) %>% 
+  distinct(ymd)
+# Variable that denotes if a bike ride happens a day that it rains 
+bike_data = bike_data %>% 
+  mutate(rain_day = ifelse(start_ymd %in% rain_days$ymd, "Yes","No")) 
+
+# Aggreates the data to find riders per day and also groups by month and finds the average
+# riders per month 
+rider_sum = bike_data %>% 
+  group_by(start_ymd, rain_day) %>%
+  summarise(riders = n()) %>%
+  ungroup() %>% mutate(month = (format(start_ymd, "%Y-%m"))) %>%
+  group_by(month, rain_day) %>% 
+  mutate(avg_riders = mean(riders))
 ```
 
+
+Looking at the plot of average riders, it seems as if the rain doesn't change the bike patterns. There are three months that do look like it could use more analysis so for those three I ran a t-test to see if there was a significant difference in number of riders for those three months. 
+
+For August 2017, there was only 1 day that it rained, which accounts for the difference and it was insufficient data to conduct a t-test. For March 2018 and April 2018 the p-values show that with an alpha of 0.10, there is significant evidence to suggest there is a change is bike riding patterns when it rains. (We do see that if alpha is 0.05 only the April differnec has a significance.)
+
+As a check, I ran a t-test on the whole data and again it showed that in general, there is no significant difference in number of riders and weather it rains or not.
+
+
+```{r, warning= FALSE, message= FALSE}
+# Looking at the average number of riders per month given if it rains or not 
+ggplot(rider_sum %>% distinct(month, rain_day, avg_riders), aes(x = month, y = avg_riders, group_by(rain_day))) +
+  geom_point(aes(color = rain_day))  + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Looking at the months that look different
+#t.test(riders ~ rain_day, data = rider_sum %>% filter(month == '2017-08'))
+t.test(riders ~ rain_day, data = rider_sum %>% filter(month == '2018-03'))
+t.test(riders ~ rain_day, data = rider_sum %>% filter(month == '2018-04'))
+
+# T-test to look at the different number of riders in total
+t.test(riders ~ rain_day, data = rider_sum)
+```
+
+So, if we only look at rain days between months, we see that there is a decrease in riders in March and April but not the other months. 
+
+
+The next thing I looked into was if there were differences in bike and rain patterns based on the stations the rider started from. The following code manipulates the data so that we get the average riders on a rainy and non rainy day per month per station. I took the average to normalize the days in case there was a disproportionate difference between the number of rain and no rain days. Then I filtered out all the stations were there was only one data point because t-tests cannot be performed on that.
+
+
+```{r, warning= FALSE, message= FALSE}
+# Data manipuation to get average riders on rain and no rain days per station
+diff_stations = bike_data %>% 
+  group_by(start_station_name,rain_day, start_ymd) %>%
+  summarise(riders = n()) %>%
+  ungroup() %>%
+  mutate(month = (format(start_ymd, "%Y-%m"))) %>%
+  group_by(start_station_name, month, rain_day) %>% 
+  mutate(avg_riders = mean(riders)) %>%
+  distinct(start_station_name, rain_day, month, avg_riders) %>%
+  spread(., rain_day, avg_riders) %>%
+  mutate(Yes = ifelse(is.na(Yes), 0, Yes))
+
+# Stations with only one observation
+one_obs = diff_stations %>% group_by(start_station_name) %>% 
+  summarise(count = n()) %>% 
+  arrange(count)  %>% filter(count <= 1)
+
+# Taking all stations with more than one observation
+diff_stations = diff_stations %>% filter(!(start_station_name %in% one_obs$start_station_name))
+```
+
+
+Once I ran a t-test on the stations, I found 81 stations with alpha as 0.05 where there is a significant difference in the average number of riders between a rainy and non rainy day. When alpha is 0.01 there is only 9 stations with a significant difference. Below I showed 5 stations from each of these alphas. 
+
+
+```{r, warning= FALSE, message= FALSE}
+# T-test on all stations
+sig_stations = diff_stations %>% 
+  group_by(start_station_name) %>% 
+  do(tidy(t.test(.$No, 
+                 .$Yes, 
+                 mu = 0, 
+                 alt = "two.sided", 
+                 paired = TRUE, 
+                 conf.level = 0.99)))
+
+alpha_05 = sig_stations %>% 
+  filter(p.value < 0.05) %>% select(start_station_name, p.value)
+head(alpha_05)
+
+alpha_01 = sig_stations %>% 
+  filter(p.value < 0.01) %>% select(start_station_name, p.value)
+head(alpha_01)
+```
+
+For visualization sake I produced the difference of the 9 stations that are statistically significant with alpha as 0.01. 
+
+
+
+```{r, warning= FALSE, message= FALSE}
+# Looking at the average number of riders per month given if it rains or not 
+avg_diff_stations = diff_stations %>% filter(start_station_name %in% alpha_01$start_station_name) %>% 
+  group_by(start_station_name) %>%
+  summarise(avg_no = mean(No), avg_yes = mean(Yes)) %>% 
+  gather(., rain_days, avg_riders, avg_no, avg_yes)
+
+ggplot(avg_diff_stations, aes(x = start_station_name, y = avg_riders, group_by(rain_days))) +
+  geom_point(aes(color = rain_days))  + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
