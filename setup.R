@@ -1,7 +1,9 @@
 library(dplyr)
 library(ggplot2)
 library(kableExtra)
+library(broom)
 library(tidyr)
+library(viridis)
 
 ## Read in the weather data and fix the data time formatting
 ## Split the hour/min/sec for further analysis

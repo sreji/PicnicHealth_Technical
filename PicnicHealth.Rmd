@@ -4,8 +4,7 @@ author: "Shaina Reji"
 output: html_document
 ---
 
-I wanted to first explore what happens to the number of riders if it rained at all during the day. The below code manipulates the code so we can look at plots and t tests.
-
+I wanted to first explore what happened to the number of riders if it rained at all during the day. The below code manipulates the code so we can look at plots and t tests.
 
 ```{r, warning= FALSE, message= FALSE}
 # Calling another file to read in the data, fix date time formats and then combine the bike data
@@ -30,11 +29,11 @@ rider_sum = bike_data %>%
 ```
 
 
-Looking at the plot of average riders, it seems as if the rain doesn't change the bike patterns. There are three months that do look like it could use more analysis so for those three I ran a t-test to see if there was a significant difference in number of riders for those three months. 
+Looking at the plot of average riders, it seems as if the rain doesn't change the bike patterns. As a check, I ran a t-test on the whole data and again it showed that in general, there is no significant difference in number of riders and weather it rains or not.
 
-For August 2017, there was only 1 day that it rained, which accounts for the difference and it was insufficient data to conduct a t-test. For March 2018 and April 2018 the p-values show that with an alpha of 0.10, there is significant evidence to suggest there is a change is bike riding patterns when it rains. (We do see that if alpha is 0.05 only the April differnec has a significance.)
+There are three months that do look like it could use more analysis so for those three I ran a t-test to see if there was a significant difference in number of riders for those three months. 
 
-As a check, I ran a t-test on the whole data and again it showed that in general, there is no significant difference in number of riders and weather it rains or not.
+For August 2017, there was only 1 day that it rained, which accounts for the difference and it was insufficient data to conduct a t-test. For March 2018 and April 2018 the p-values show that with an alpha of 0.10, it is statistically significant that there is a change is bike riding patterns when it rains. (We do see that if alpha is 0.05 only the April difference has a significance.)
 
 
 ```{r, warning= FALSE, message= FALSE}
@@ -52,7 +51,6 @@ t.test(riders ~ rain_day, data = rider_sum)
 ```
 
 So, if we only look at rain days between months, we see that there is a decrease in riders in March and April but not the other months. 
-
 
 The next thing I looked into was if there were differences in bike and rain patterns based on the stations the rider started from. The following code manipulates the data so that we get the average riders on a rainy and non rainy day per month per station. I took the average to normalize the days in case there was a disproportionate difference between the number of rain and no rain days. Then I filtered out all the stations were there was only one data point because t-tests cannot be performed on that.
 
@@ -79,7 +77,6 @@ one_obs = diff_stations %>% group_by(start_station_name) %>%
 diff_stations = diff_stations %>% filter(!(start_station_name %in% one_obs$start_station_name))
 ```
 
-
 Once I ran a t-test on the stations, I found 81 stations with alpha as 0.05 where there is a significant difference in the average number of riders between a rainy and non rainy day. When alpha is 0.01 there is only 9 stations with a significant difference. Below I showed 5 stations from each of these alphas. 
 
 
@@ -94,18 +91,18 @@ sig_stations = diff_stations %>%
                  paired = TRUE, 
                  conf.level = 0.99)))
 
+# Looking at significance with alpha = 0.05
 alpha_05 = sig_stations %>% 
   filter(p.value < 0.05) %>% select(start_station_name, p.value)
 head(alpha_05)
 
+# Looking at significance with alpha = 0.01
 alpha_01 = sig_stations %>% 
   filter(p.value < 0.01) %>% select(start_station_name, p.value)
 head(alpha_01)
 ```
 
-For visualization sake I produced the difference of the 9 stations that are statistically significant with alpha as 0.01. 
-
-
+For visualization sake I produced the difference of the 9 stations that are statistically significant with alpha as 0.01. It would be interesting to see if these stations were located near eachother! With more time I would be able to compare the latitude and longitude of these locations and check that. At overview shows that three of them are on Foothill Blvd, which might indicate that they actually are near. 
 
 ```{r, warning= FALSE, message= FALSE}
 # Looking at the average number of riders per month given if it rains or not 
@@ -114,6 +111,33 @@ avg_diff_stations = diff_stations %>% filter(start_station_name %in% alpha_01$st
   summarise(avg_no = mean(No), avg_yes = mean(Yes)) %>% 
   gather(., rain_days, avg_riders, avg_no, avg_yes)
 
+# Plotting differences of the 9 most significant station differences 
 ggplot(avg_diff_stations, aes(x = start_station_name, y = avg_riders, group_by(rain_days))) +
   geom_point(aes(color = rain_days))  + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+
+Another interesting exploration is whether or not the percentage of riders during a rainly day changes as the percipitation changes. To do this I looked at just the rainy days and then calculated what percentage of the total riders that day were riding given a certain level of percipitation. And as expected the graph does show that as perciptation increases the amount of riders from that day decrease. 
+
+```{r, warning= FALSE, message= FALSE}
+# Manipulating the data to find the percentage of riders during different levels of percipitation 
+percip_data = bike_data %>% 
+  filter(start_ymd %in% rain_days$ymd) %>%
+  left_join(., (weather_data %>% 
+  filter(!is.na(HOURLYPrecip)) %>% 
+  select(ymd, hour, min ,sec, HOURLYPrecip)), by = c('start_ymd' = 'ymd', 'start_hour' = 'hour')) %>%
+  mutate(HOURLYPrecip = ifelse(is.na(HOURLYPrecip), 0, HOURLYPrecip)) %>% 
+  group_by(start_ymd) %>%
+  mutate(count = n()) %>% 
+  ungroup() %>% group_by(start_ymd, HOURLYPrecip, count) %>%
+  summarise(rider_per_percip = n()) %>%
+  mutate(avg_rider_percip = rider_per_percip/count)
+
+# Plotting the change when it rains 
+ggplot(percip_data, aes(start_ymd, HOURLYPrecip)) +
+  geom_point(aes(colour = avg_rider_percip)) + 
+  scale_color_viridis(discrete = FALSE) +
+  scale_fill_viridis(discrete = FALSE) 
+```
+
+
